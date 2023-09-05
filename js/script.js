@@ -58,7 +58,7 @@ async function displayDetails(apiPath, containerSelector, mediaType) {
     `
 
 	const additionalInfo =
-		mediaType === 'media'
+		mediaType === 'movie'
 			? `<li><span class="text-secondary">Budget: </span>${addComasToNumber(
 					media.budget
 			  )}</li>
@@ -190,44 +190,75 @@ function addComasToNumber(num) {
 	return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
 
-async function search() {
+async function searchMovie() {
 	const searchInput = document.querySelector('#search-term')
+	const moviesContainer = document.querySelector('#popular-movies')
+	const pagesContainer = document.querySelector('.pagination')
+	const prevButton = document.querySelector('#prev-button')
+	const nextButton = document.querySelector('#next-button')
+	let currentPage = 1
+	let results = null
+
+	function loadPage(page) {
+		currentPage = page
+		const apiPath = `search/movie?query=${encodeURIComponent(
+			searchInput.value.trim()
+		)}&page=${currentPage}`
+		moviesContainer.innerHTML = ''
+		fetchApiData(apiPath)
+			.then((searchResults) => {
+				if (searchResults && searchResults.results) {
+					results = searchResults
+					searchResults.results.forEach((media) => {
+						const card = createMediaCard(media, 'movie')
+						moviesContainer.appendChild(card)
+					})
+				}
+			})
+			.catch((error) => {
+				console.error(`Error: ${error.message}`)
+			})
+	}
 
 	searchInput.addEventListener('input', async (event) => {
-		const searchTerm = event.target.value
-		const moviesContainer = document.querySelector('#popular-movies')
+		const searchTerm = event.target.value.trim()
+		moviesContainer.innerHTML = ''
 
 		if (searchTerm.length >= 1) {
-			moviesContainer.innerHTML = '' // Limpiar el contenedor
-			const options = {
-				method: 'GET',
-				headers: {
-					accept: 'application/json',
-					Authorization:
-						'Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiIwYjU5ZWYyZjcyMWI4ZTY5ZDU3MjRlNjhlM2FmMmFhYSIsInN1YiI6IjY0ZjBkOWI5ZGJiYjQyMDBlMTYyOTZlYSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.yFom0vyJYyHu5EZ9FvLz7c3XzFL9ey0gELpYStTo8sk',
-				},
-			}
-
-			fetch(
-				`https://api.themoviedb.org/3/search/movie?query=${searchTerm}&include_adult=false&language=en-US&page=1`,
-				options
-			)
-				.then((response) => response.json())
-
-				.then((response) =>
-					response.results.forEach((media) => {
-						const container = document.querySelector('#popular-movies')
-
-						const card = createMediaCard(media, 'movie')
-						container.appendChild(card)
-					})
-				)
-
-				.catch((err) => console.error(err))
+			console.log(results)
+			pagesContainer.classList.add('active')
+			loadPage(1)
 		} else {
-			// Si el campo de búsqueda está vacío, mostrar películas populares
+			pagesContainer.classList.remove('active')
 			fetchAndDisplayMedia('movie/popular', '#popular-movies', 'movie')
 		}
+
+		nextButton.addEventListener('click', () => {
+			if (currentPage < results.total_pages) {
+				loadPage(currentPage + 1)
+				// Enable the prevButton because you're going to the next page.
+				prevButton.removeAttribute('disabled')
+
+				// Disable nextButton if you are on the last page.
+				if (currentPage + 1 === results.total_pages) {
+					nextButton.setAttribute('disabled', 'disabled')
+				}
+			}
+		})
+
+		prevButton.addEventListener('click', () => {
+			if (currentPage > 1) {
+				loadPage(currentPage - 1)
+
+				// Enable the nextButton because you're going back a page.
+				nextButton.removeAttribute('disabled')
+
+				// Disable prevButton if you are on the first page after going back.
+				if (currentPage - 1 === 1) {
+					prevButton.setAttribute('disabled', 'disabled')
+				}
+			}
+		})
 	})
 }
 
@@ -240,7 +271,7 @@ function init() {
 		case '/':
 		case '/index.html':
 			fetchAndDisplayMedia('movie/popular', '#popular-movies', 'movie')
-			search()
+			searchMovie()
 			break
 		case '/shows.html':
 			fetchAndDisplayMedia('tv/popular', '#popular-shows', 'show')
